@@ -7,6 +7,7 @@ export const config = {
   port: process.env.PORT || 5000,
   
   // PostgreSQL Configuration
+  databaseUrl: process.env.DATABASE_URL,
   dbHost: process.env.DB_HOST || 'localhost',
   dbPort: process.env.DB_PORT || 5432,
   dbName: process.env.DB_NAME || 'devlens_db',

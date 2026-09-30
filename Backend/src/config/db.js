@@ -1,15 +1,26 @@
 import pkg from 'pg';
+
 import { config } from './env.js';
 
 const { Pool } = pkg;
 
-export const pool = new Pool({
-  user: config.dbUser,
-  password: config.dbPassword,
-  host: config.dbHost,
-  port: config.dbPort,
-  database: config.dbName,
-});
+export const pool = new Pool(
+  config.databaseUrl
+    ? {
+        connectionString: config.databaseUrl,
+        ssl:
+          config.nodeEnv === 'production'
+            ? { rejectUnauthorized: false }
+            : false,
+      }
+    : {
+        user: config.dbUser,
+        password: config.dbPassword,
+        host: config.dbHost,
+        port: config.dbPort,
+        database: config.dbName,
+      }
+);
 
 pool.on('error', (err) => {
   console.error('Unexpected error on idle client', err);
