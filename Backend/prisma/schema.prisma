@@ -1,0 +1,139 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String   @db.VarChar(255)
+  email          String   @unique @db.VarChar(255)
+  password       String   @db.VarChar(255)
+  bio            String?
+  avatar         String?  @db.VarChar(255)
+  githubUsername String?  @unique @map("github_username") @db.VarChar(255)
+  role           String?  @default("user") @db.VarChar(50)
+  verified       Boolean? @default(false)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  repositories    Repository[]
+  analyses        Analysis[]
+  bookmarks       Bookmark[]
+  analysisHistory AnalysisHistory[]
+
+  @@index([email], map: "idx_users_email")
+  @@index([githubUsername], map: "idx_users_github_username")
+  @@map("users")
+}
+
+model Repository {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  githubId    BigInt?  @unique @map("github_id")
+  userId      String   @map("user_id") @db.Uuid
+  owner       String   @db.VarChar(255)
+  name        String   @db.VarChar(255)
+  url         String   @unique @db.VarChar(255)
+  description String?
+  language    String?  @db.VarChar(50)
+  stars       Int?     @default(0)
+  forks       Int?     @default(0)
+  watchers    Int?     @default(0)
+  openIssues  Int?     @default(0) @map("open_issues")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  metrics         RepositoryMetrics[]
+  analyses        Analysis[]
+  bookmarks       Bookmark[]
+  analysisHistory AnalysisHistory[]
+  
+
+  @@index([userId], map: "idx_repositories_user_id")
+  @@index([githubId], map: "idx_repositories_github_id")
+  @@map("repositories")
+}
+
+model RepositoryMetrics {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  repositoryId   String    @unique @map("repository_id") @db.Uuid
+  contributors   Int?      @default(0)
+  commits        Int?      @default(0)
+  issues         Int?      @default(0)
+  pullRequests   Int?      @default(0) @map("pull_requests")
+  lastCommitDate DateTime? @map("last_commit_date") @db.Timestamp(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@index([repositoryId], map: "idx_repository_metrics_repository_id")
+  @@map("repository_metrics")
+}
+
+model Analysis {
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  repositoryId       String   @map("repository_id") @db.Uuid
+  userId             String   @map("user_id") @db.Uuid
+  healthScore        Int?     @default(0) @map("health_score")
+  beginnerFriendlyScore Int? @map("beginner_friendly_score")
+  codeQualityScore   Int?     @default(0) @map("code_quality_score")
+  documentationScore Int?     @default(0) @map("documentation_score")
+  testCoverage       Int?     @default(0) @map("test_coverage")
+  performanceScore   Int?     @default(0) @map("performance_score")
+  securityScore      Int?     @default(0) @map("security_score")
+  aiSummary          String?  @map("ai_summary")
+  recommendations    String[]
+  analysisDate       DateTime @default(now()) @map("analysis_date") @db.Timestamp(6)
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt          DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  repository Repository        @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  user       User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  history    AnalysisHistory[]
+
+  @@index([repositoryId], map: "idx_analyses_repository_id")
+  @@index([userId], map: "idx_analyses_user_id")
+  @@index([analysisDate], map: "idx_analyses_analysis_date")
+  @@map("analyses")
+}
+
+model Bookmark {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  repositoryId String   @map("repository_id") @db.Uuid
+  notes        String?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, repositoryId])
+  @@index([userId], map: "idx_bookmarks_user_id")
+  @@index([repositoryId], map: "idx_bookmarks_repository_id")
+  @@map("bookmarks")
+}
+
+model AnalysisHistory {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  analysisId   String?  @map("analysis_id") @db.Uuid
+  repositoryId String   @map("repository_id") @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  snapshotData Json?    @map("snapshot_data") @db.JsonB
+  healthScore  Int?     @default(0) @map("health_score")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamp(6)
+
+  analysis   Analysis?  @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  repository Repository @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([repositoryId], map: "idx_analysis_history_repository_id")
+  @@index([userId], map: "idx_analysis_history_user_id")
+  @@index([createdAt], map: "idx_analysis_history_created_at")
+  @@map("analysis_history")
+}
