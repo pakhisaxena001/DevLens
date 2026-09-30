@@ -14,7 +14,7 @@ export const config = {
   dbPassword: process.env.DB_PASSWORD || 'password',
   
   // JWT Configuration
-  jwtSecret: process.env.JWT_SECRET || 'your-secret-key',
+  jwtSecret: process.env.JWT_SECRET,
   jwtExpire: process.env.JWT_EXPIRE || '7d',
   
   // GitHub Configuration
@@ -23,10 +23,9 @@ export const config = {
   githubClientSecret: process.env.GITHUB_CLIENT_SECRET,
   
   // Gemini Configuration
-  openaiApiKey: process.env.OPENAI_API_KEY,
   geminiApiKey: process.env.GEMINI_API_KEY,
   
   // CORS Configuration
-  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  corsOrigin: process.env.CORS_ORIGIN || 'http://localhost:5173',
 };
 
