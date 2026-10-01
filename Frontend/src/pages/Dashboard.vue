@@ -1,299 +1,107 @@
 ﻿<script setup>
-import { ref, computed, onMounted } from 'vue'
-import { RouterLink } from 'vue-router'
-import { getProfile } from '@/services/profileService'
-import { useDashboardStore } from '@/stores/dashboard'
-
+import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   BarChart3,
   TrendingUp,
   Bookmark,
-  ArrowRight,
   Activity,
-  Code2,
-  CalendarDays,
-  Loader2,
+  ArrowRight,
+  Sparkles,
 } from '@lucide/vue'
+import { useDashboardStore } from '@/stores/dashboard'
 
+const router = useRouter()
 const dashboardStore = useDashboardStore()
-const userName = ref('')
-const activityHistory = ref([])
 
-// ==================================================
-// Helpers
-// ==================================================
-
-const formatDate = (date) => {
-  if (!date) return 'Unknown date'
-
-  const value = new Date(date)
-
-  if (Number.isNaN(value.getTime())) {
-    return 'Unknown date'
-  }
-
-  return value.toLocaleDateString(
-    'en-US',
-    {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-    }
-  )
-}
-
-const getRelativeDate = (date) => {
-  if (!date) return ''
-
-  const value = new Date(date)
-
-  if (Number.isNaN(value.getTime())) {
-    return ''
-  }
-
-  const now = new Date()
-
-  const difference =
-    now.getTime() -
-    value.getTime()
-
-  const minutes =
-    Math.floor(
-      difference / 60000
-    )
-
-  if (minutes < 1) {
-    return 'Just now'
-  }
-
-  if (minutes < 60) {
-    return `${minutes} min ago`
-  }
-
-  const hours =
-    Math.floor(
-      minutes / 60
-    )
-
-  if (hours < 24) {
-    return `${hours} hr ago`
-  }
-
-  const days =
-    Math.floor(
-      hours / 24
-    )
-
-  if (days < 7) {
-    return `${days} day${
-      days === 1 ? '' : 's'
-    } ago`
-  }
-
-  return formatDate(date)
-}
-
-// ==================================================
-// Statistics
-// ==================================================
-
-const statsCards = computed(() => [
-  {
-    label: 'Repositories Analyzed',
-    value:
-      dashboardStore.stats
-        .repositoriesAnalyzed,
-    icon: BarChart3,
-    iconClass:
-      'bg-blue-500',
-  },
-
-  {
-    label: 'Average Health Score',
-    value:
-      dashboardStore.stats
-        .healthScore,
-    suffix: '/100',
-    icon: TrendingUp,
-    iconClass:
-      'bg-green-500',
-  },
-
-  {
-    label: 'Bookmarks',
-    value:
-      dashboardStore.stats
-        .bookmarks,
-    icon: Bookmark,
-    iconClass:
-      'bg-purple-500',
-  },
-
-  {
-    label: 'Analyses This Month',
-    value:
-      dashboardStore.stats
-        .analysesThisMonth,
-    icon: BarChart3,
-    iconClass:
-      'bg-orange-500',
-  },
-])
-
-// ==================================================
-// Recent analyses
-// ==================================================
+const stats = computed(() => dashboardStore.stats)
 
 const recentAnalyses = computed(() => {
-  return dashboardStore.recentAnalyses.slice(0, 5)
+  return dashboardStore.recentAnalyses || []
 })
 
-// ==================================================
-// Languages
-// ==================================================
-
-const languageColors = [
-  'bg-blue-500',
-  'bg-yellow-500',
-  'bg-red-500',
-  'bg-purple-500',
-  'bg-gray-400',
-]
-
-const languages =
-  computed(() =>
-    dashboardStore
-      .topLanguages
-      .map(
-        (language, index) => ({
-          ...language,
-          color:
-            languageColors[
-              index %
-                languageColors.length
-            ],
-        })
-      )
+const latestAIInsight = computed(() => {
+  return (
+    recentAnalyses.value.find(
+      (item) =>
+        item.aiSummary &&
+        item.aiSummary.summary
+    ) || null
   )
+})
 
-// ==================================================
-// Activity chart
-// ==================================================
+const aiSummary = computed(() => {
+  return latestAIInsight.value?.aiSummary || null
+})
 
-const activity =
-  computed(() =>
-    dashboardStore.activity
-  )
+const aiStrengths = computed(() => {
+  return Array.isArray(aiSummary.value?.strengths)
+    ? aiSummary.value.strengths.slice(0, 2)
+    : []
+})
 
-const maxActivity =
-  computed(() => {
-    const values =
-      activity.value.map(
-        (item) =>
-          item.value
-      )
+const aiRepositoryName = computed(() => {
+  return latestAIInsight.value?.name || 'Repository'
+})
 
-    return Math.max(
-      ...values,
-      1
-    )
-  })
+const activity = computed(() => {
+  const analyses = dashboardStore.recentAnalyses || []
 
-const activityPoints =
-  computed(() => {
-    if (
-      !activity.value.length
-    ) {
-      return ''
-    }
+  const days = []
 
-    const width = 700
-    const height = 180
-    const padding = 20
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date()
+    date.setHours(0, 0, 0, 0)
+    date.setDate(date.getDate() - i)
 
-    const usableWidth =
-      width -
-      padding * 2
+    const nextDate = new Date(date)
+    nextDate.setDate(nextDate.getDate() + 1)
 
-    const usableHeight =
-      height -
-      padding * 2
+    const count = analyses.filter((item) => {
+      if (!item.date) return false
 
-    return activity.value
-      .map(
-        (item, index) => {
-          const x =
-            activity.value.length ===
-            1
-              ? width / 2
-              : padding +
-                (index /
-                  (activity.value.length -
-                    1)) *
-                  usableWidth
+      const analysisDate = new Date(item.date)
 
-          const y =
-            height -
-            padding -
-            (item.value /
-              maxActivity.value) *
-              usableHeight
+      return analysisDate >= date && analysisDate < nextDate
+    }).length
 
-          return `${x},${y}`
-        }
-      )
-      .join(' ')
-  })
-
-
-/* =====================================
-   Dynamic language donut
-===================================== */
-
-const languageGradient = computed(() => {
-  if (!languages.value.length) {
-    return '#e5e7eb'
+    days.push({
+      date: date.toISOString(),
+      label: date.toLocaleDateString('en-US', {
+        weekday: 'short',
+      }),
+      value: count,
+    })
   }
 
-  const colors = [
-    '#3b82f6',
-    '#eab308',
-    '#ef4444',
-    '#a855f7',
-    '#9ca3af',
-  ]
-
-  let current = 0
-
-  const segments = languages.value.map((language, index) => {
-    const start = current
-
-    current += Number(language.percentage) || 0
-
-    return `${colors[index % colors.length]} ${start}% ${current}%`
-  })
-
-  return `conic-gradient(${segments.join(', ')})`
+  return days
 })
 
-// ==================================================
-// Dashboard loading
-// ==================================================
+const goToRepository = (repositoryId) => {
+  if (!repositoryId) return
+
+  router.push({
+    path: '/repository',
+    query: {
+      id: repositoryId,
+    },
+  })
+}
+
+const goToAIInsights = () => {
+  if (!latestAIInsight.value?.repositoryId) return
+
+  router.push({
+    path: '/ai-insights',
+    query: {
+      id: latestAIInsight.value.repositoryId,
+    },
+  })
+}
 
 onMounted(async () => {
   try {
-    const [dashboardData, profileResponse] =
-      await Promise.all([
-        dashboardStore.fetchDashboardData(),
-        getProfile(),
-      ])
-
-
-    activityHistory.value =
-      await dashboardStore.fetchActivityHistory()
-
-    userName.value =
-      profileResponse.user?.name || ''
+    await dashboardStore.fetchDashboardData()
   } catch (error) {
     console.error('Failed to load dashboard:', error)
   }
@@ -301,531 +109,254 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div
-    class="flex-1 overflow-auto bg-gray-50"
-  >
-    <div
-      class="p-6 lg:p-8 max-w-[1600px] mx-auto"
-    >
+  <div class="min-h-full bg-gray-50 px-6 py-8">
 
-      <!-- =========================================
-           HEADER
-      ========================================== -->
+    <!-- ========================================= -->
+    <!-- HEADER -->
+    <!-- ========================================= -->
+
+    <div class="max-w-7xl mx-auto">
 
       <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900 mb-2">
-          Welcome back<span v-if="userName">, {{ userName }}</span>! 👋
+        <h1 class="text-3xl font-bold text-gray-900">
+          Welcome back, {{ dashboardStore.user?.name || 'User' }}! 
         </h1>
 
-        <p
-          class="text-gray-600 mt-2"
-        >
-          Here's what's happening with
-          your repositories today.
+        <p class="text-gray-600 mt-2">
+          Here's what's happening with your repositories today.
         </p>
       </div>
 
-      <!-- =========================================
-           LOADING
-      ========================================== -->
+
+      <!-- ========================================= -->
+      <!-- STATS -->
+      <!-- ========================================= -->
 
       <div
-        v-if="dashboardStore.loading"
-        class="bg-white rounded-xl border border-gray-200 p-12 flex flex-col items-center justify-center"
+        class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-6"
       >
-        <Loader2
-          class="w-8 h-8 text-green-600 animate-spin"
-        />
 
-        <p
-          class="text-gray-600 mt-3"
-        >
-          Loading dashboard...
-        </p>
-      </div>
-
-      <!-- =========================================
-           ERROR
-      ========================================== -->
-
-      <div
-        v-else-if="dashboardStore.error"
-        class="mb-8 bg-red-50 border border-red-200 rounded-xl p-5"
-      >
-        <p
-          class="font-semibold text-red-800"
-        >
-          Unable to load dashboard
-        </p>
-
-        <p
-          class="text-sm text-red-700 mt-1"
-        >
-          {{ dashboardStore.error }}
-        </p>
-      </div>
-
-      <!-- =========================================
-           DASHBOARD CONTENT
-      ========================================== -->
-
-      <template v-else>
-
-        <!-- =======================================
-             STAT CARDS
-        ======================================== -->
-
+        <!-- Repositories -->
         <div
-          class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-6"
+          class="bg-white border border-gray-200 rounded-xl p-5"
         >
+          <div class="flex items-start justify-between">
 
-          <div
-            v-for="stat in statsCards"
-            :key="stat.label"
-            class="bg-white rounded-xl border border-gray-200 p-5 hover:shadow-md transition"
-          >
+            <div>
+              <p class="text-sm text-gray-500">
+                Repositories Analyzed
+              </p>
+
+              <p class="text-3xl font-bold text-gray-900 mt-3">
+                {{ stats.repositoriesAnalyzed || 0 }}
+              </p>
+            </div>
 
             <div
-              class="flex items-start justify-between"
+              class="w-11 h-11 rounded-lg bg-blue-500 flex items-center justify-center"
             >
-
-              <div>
-                <p
-                  class="text-sm text-gray-500 mb-3"
-                >
-                  {{ stat.label }}
-                </p>
-
-                <div
-                  class="flex items-baseline gap-1"
-                >
-                  <span
-                    class="text-3xl font-bold text-gray-900"
-                  >
-                    {{ stat.value }}
-                  </span>
-
-                  <span
-                    v-if="stat.suffix"
-                    class="text-sm font-medium text-gray-500"
-                  >
-                    {{ stat.suffix }}
-                  </span>
-                </div>
-              </div>
-
-              <div
-                :class="[
-                  stat.iconClass,
-                  'w-11 h-11 rounded-lg flex items-center justify-center'
-                ]"
-              >
-                <component
-                  :is="stat.icon"
-                  class="w-5 h-5 text-white"
-                />
-              </div>
-
+              <BarChart3 class="w-5 h-5 text-white" />
             </div>
+
           </div>
-
         </div>
 
-        <!-- =======================================
-             MAIN GRID
-        ======================================== -->
 
+        <!-- Health Score -->
         <div
-          class="grid grid-cols-1 xl:grid-cols-5 gap-6 mb-6"
+          class="bg-white border border-gray-200 rounded-xl p-5"
         >
+          <div class="flex items-start justify-between">
 
-          <!-- =====================================
-               RECENT ANALYSES
-          ====================================== -->
+            <div>
+              <p class="text-sm text-gray-500">
+                Average Health Score
+              </p>
 
-          <section
-            class="xl:col-span-3 bg-white rounded-xl border border-gray-200 overflow-hidden"
-          >
-
-            <div
-              class="px-6 py-5 border-b border-gray-100 flex items-center justify-between"
-            >
-
-              <div>
-                <h2
-                  class="text-lg font-bold text-gray-900"
-                >
-                  Recent Analyses
-                </h2>
-
-                <p
-                  class="text-xs text-gray-500 mt-1"
-                >
-                  Your latest repository analyses
+              <div class="flex items-end gap-1 mt-3">
+                <p class="text-3xl font-bold text-gray-900">
+                  {{ stats.healthScore || 0 }}
                 </p>
+
+                <span class="text-sm text-gray-500 mb-1">
+                  /100
+                </span>
               </div>
-
-              <RouterLink
-                to="/history"
-                class="text-green-600 hover:text-green-700 text-sm font-semibold flex items-center gap-1"
-              >
-                View all
-
-                <ArrowRight
-                  class="w-4 h-4"
-                />
-              </RouterLink>
-
             </div>
 
             <div
-              v-if="
-                recentAnalyses.length
-              "
-              class="divide-y divide-gray-100"
+              class="w-11 h-11 rounded-lg bg-green-500 flex items-center justify-center"
             >
-
-              <RouterLink
-                v-for="analysis in recentAnalyses"
-                :key="analysis.id"
-                :to="{
-                  path: '/repository',
-                  query: {
-                    id: analysis.repositoryId,
-                  },
-                }"
-                class="flex items-center justify-between px-6 py-4 hover:bg-gray-50 transition group"
-              >
-
-                <div
-                  class="flex items-center gap-3 min-w-0"
-                >
-
-                  <div
-                    class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0"
-                  >
-                    <Code2
-                      class="w-4 h-4 text-gray-600"
-                    />
-                  </div>
-
-                  <div
-                    class="min-w-0"
-                  >
-                    <p
-                      class="font-semibold text-gray-900 truncate"
-                    >
-                      {{ analysis.name }}
-                    </p>
-
-                    <p
-                      class="text-xs text-gray-500 mt-1"
-                    >
-                      {{
-                        getRelativeDate(
-                          analysis.date
-                        )
-                      }}
-                    </p>
-                  </div>
-
-                </div>
-
-                <div
-                  class="flex items-center gap-5 ml-4"
-                >
-
-                  <div
-                    class="text-right"
-                  >
-                    <p
-                      class="text-xl font-bold text-green-600"
-                    >
-                      {{ analysis.health }}
-                    </p>
-
-                    <p
-                      class="text-[11px] text-gray-500"
-                    >
-                      /100
-                    </p>
-                  </div>
-
-                  <ArrowRight
-                    class="w-4 h-4 text-gray-400 group-hover:text-green-600 transition"
-                  />
-
-                </div>
-
-              </RouterLink>
-
+              <TrendingUp class="w-5 h-5 text-white" />
             </div>
 
-            <div
-              v-else
-              class="p-10 text-center"
-            >
-              <Code2
-                class="w-8 h-8 text-gray-300 mx-auto"
-              />
-
-              <p
-                class="text-sm text-gray-500 mt-3"
-              >
-                No analyses yet.
-              </p>
-
-              <RouterLink
-                to="/analyze"
-                class="inline-block mt-3 text-sm font-semibold text-green-600 hover:text-green-700"
-              >
-                Analyze a repository
-              </RouterLink>
-            </div>
-
-          </section>
-
-          <!-- =====================================
-               TOP LANGUAGES
-          ====================================== -->
-
-          <section
-            class="xl:col-span-2 bg-white rounded-xl border border-gray-200 p-6"
-          >
-
-            <div
-              class="mb-5"
-            >
-              <h2
-                class="text-lg font-bold text-gray-900"
-              >
-                Top Languages
-              </h2>
-
-              <p
-                class="text-xs text-gray-500 mt-1"
-              >
-                Across your analyzed repositories
-              </p>
-            </div>
-
-            <div
-              v-if="languages.length"
-              class="flex items-center gap-7"
-            >
-
-              <!-- Donut -->
-
-              <div
-                class="relative w-36 h-36 shrink-0 rounded-full"
-                :style="{
-                  background: languageGradient
-                }"
-              >
-
-                <div
-                  class="absolute inset-5 bg-white rounded-full"
-                ></div>
-
-              </div>
-
-              <!-- Legend -->
-
-              <div
-                class="flex-1 space-y-3"
-              >
-
-                <div
-                  v-for="language in languages"
-                  :key="language.name"
-                  class="flex items-center justify-between gap-3"
-                >
-
-                  <div
-                    class="flex items-center gap-2 min-w-0"
-                  >
-                    <span
-                      :class="[
-                        language.color,
-                        'w-2.5 h-2.5 rounded-full shrink-0'
-                      ]"
-                    ></span>
-
-                    <span
-                      class="text-sm text-gray-700 truncate"
-                    >
-                      {{ language.name }}
-                    </span>
-                  </div>
-
-                  <span
-                    class="text-sm font-semibold text-gray-900"
-                  >
-                    {{ language.percentage }}%
-                  </span>
-
-                </div>
-
-              </div>
-
-            </div>
-
-            <div
-              v-else
-              class="h-36 flex items-center justify-center text-sm text-gray-500"
-            >
-              Language data is not available yet.
-            </div>
-
-          </section>
-
+          </div>
         </div>
 
-        <!-- =======================================
-             ACTIVITY
-        ======================================== -->
+
+        <!-- Bookmarks -->
+        <div
+          class="bg-white border border-gray-200 rounded-xl p-5"
+        >
+          <div class="flex items-start justify-between">
+
+            <div>
+              <p class="text-sm text-gray-500">
+                Bookmarks
+              </p>
+
+              <p class="text-3xl font-bold text-gray-900 mt-3">
+                {{ stats.bookmarks || 0 }}
+              </p>
+            </div>
+
+            <div
+              class="w-11 h-11 rounded-lg bg-purple-500 flex items-center justify-center"
+            >
+              <Bookmark class="w-5 h-5 text-white" />
+            </div>
+
+          </div>
+        </div>
+
+
+        <!-- Analyses This Month -->
+        <div
+          class="bg-white border border-gray-200 rounded-xl p-5"
+        >
+          <div class="flex items-start justify-between">
+
+            <div>
+              <p class="text-sm text-gray-500">
+                Analyses This Month
+              </p>
+
+              <p class="text-3xl font-bold text-gray-900 mt-3">
+                {{ stats.analysesThisMonth || 0 }}
+              </p>
+            </div>
+
+            <div
+              class="w-11 h-11 rounded-lg bg-orange-500 flex items-center justify-center"
+            >
+              <Activity class="w-5 h-5 text-white" />
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+
+      <!-- ========================================= -->
+      <!-- RECENT ANALYSES + AI INSIGHTS -->
+      <!-- ========================================= -->
+
+      <div
+        class="grid grid-cols-1 lg:grid-cols-5 gap-6 mb-6"
+      >
+
+        <!-- ======================================= -->
+        <!-- RECENT ANALYSES -->
+        <!-- ======================================= -->
 
         <section
-          class="bg-white rounded-xl border border-gray-200 p-6"
+          class="lg:col-span-3 bg-white border border-gray-200 rounded-xl overflow-hidden"
         >
 
           <div
-            class="flex items-start justify-between mb-5"
+            class="px-6 py-5 border-b border-gray-100 flex items-center justify-between"
           >
 
             <div>
-              <h2
-                class="text-lg font-bold text-gray-900"
-              >
-                Your Activity
+              <h2 class="text-lg font-bold text-gray-900">
+                Recent Analyses
               </h2>
 
-              <p
-                class="text-xs text-gray-500 mt-1"
-              >
-                Repository analysis activity over the last 7 days
+              <p class="text-sm text-gray-500 mt-1">
+                Your latest repository analyses
               </p>
             </div>
 
-            <div
-              class="flex items-center gap-2 text-xs text-gray-500"
+            <button
+              @click="router.push('/history')"
+              class="text-sm font-semibold text-green-600 hover:text-green-700 flex items-center gap-1"
             >
-              <Activity
-                class="w-4 h-4"
-              />
-              Last 7 days
-            </div>
+              View all
+              <ArrowRight class="w-4 h-4" />
+            </button>
 
           </div>
 
+
+          <!-- Analysis list -->
           <div
-            v-if="activity.length"
-            class="w-full overflow-hidden"
+            v-if="recentAnalyses.length"
           >
 
-            <svg
-              viewBox="0 0 700 220"
-              preserveAspectRatio="none"
-              class="w-full h-56"
-            >
-
-              <!-- Grid -->
-
-              <line
-                x1="20"
-                y1="40"
-                x2="680"
-                y2="40"
-                stroke="#e5e7eb"
-                stroke-width="1"
-              />
-
-              <line
-                x1="20"
-                y1="100"
-                x2="680"
-                y2="100"
-                stroke="#e5e7eb"
-                stroke-width="1"
-              />
-
-              <line
-                x1="20"
-                y1="160"
-                x2="680"
-                y2="160"
-                stroke="#e5e7eb"
-                stroke-width="1"
-              />
-
-              <!-- Area -->
-
-              <polygon
-                v-if="activityPoints"
-                :points="`20,200 ${activityPoints} 680,200`"
-                fill="#dcfce7"
-              />
-
-              <!-- Line -->
-
-              <polyline
-                v-if="activityPoints"
-                :points="activityPoints"
-                fill="none"
-                stroke="#16a34a"
-                stroke-width="4"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-
-              <!-- Points -->
-
-              <circle
-                v-for="(item, index) in activity"
-                :key="item.date"
-                :cx="
-                  activity.length === 1
-                    ? 350
-                    : 20 +
-                      (index /
-                        (activity.length - 1)) *
-                        660
-                "
-                :cy="
-                  200 -
-                  (item.value /
-                    maxActivity) *
-                    160
-                "
-                r="5"
-                fill="#16a34a"
-              />
-
-            </svg>
-
-            <!-- Labels -->
-
             <div
-              class="grid grid-cols-7 gap-2 mt-1"
+              v-for="item in recentAnalyses.slice(0, 5)"
+              :key="item.id"
+              @click="goToRepository(item.repositoryId)"
+              class="px-6 py-4 border-b border-gray-100 last:border-b-0 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition"
             >
 
-              <div
-                v-for="item in activity"
-                :key="`${item.date}-label`"
-                class="text-center"
-              >
+              <div class="flex items-center gap-3 min-w-0">
 
-                <p
-                  class="text-[11px] text-gray-500"
+                <div
+                  class="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0"
                 >
-                  {{ item.label }}
-                </p>
+                  <span class="text-sm text-gray-600 font-mono">
+                    &lt;/&gt;
+                  </span>
+                </div>
 
-                <p
-                  class="text-xs font-semibold text-gray-800 mt-1"
-                >
-                  {{ item.value }}
-                </p>
+                <div class="min-w-0">
+
+                  <p
+                    class="font-semibold text-gray-900 truncate"
+                  >
+                    {{ item.name }}
+                  </p>
+
+                  <p class="text-xs text-gray-500 mt-1">
+                    {{ item.date
+                      ? new Date(item.date).toLocaleString()
+                      : 'Recently analyzed'
+                    }}
+                  </p>
+
+                </div>
+
+              </div>
+
+
+              <div class="flex items-center gap-4 shrink-0">
+
+                <div class="text-right">
+
+                  <p
+                    class="text-lg font-bold"
+                    :class="
+                      item.health >= 70
+                        ? 'text-green-600'
+                        : item.health >= 50
+                          ? 'text-yellow-600'
+                          : 'text-red-600'
+                    "
+                  >
+                    {{ item.health }}
+                  </p>
+
+                  <p class="text-xs text-gray-400">
+                    /100
+                  </p>
+
+                </div>
+
+                <ArrowRight
+                  class="w-4 h-4 text-gray-400"
+                />
 
               </div>
 
@@ -833,21 +364,381 @@ onMounted(async () => {
 
           </div>
 
+
+          <!-- Empty state -->
           <div
             v-else
-            class="h-56 flex items-center justify-center bg-gray-50 rounded-lg"
+            class="py-12 text-center"
           >
-            <p
-              class="text-sm text-gray-500"
-            >
-              No activity data available yet.
+            <BarChart3
+              class="w-8 h-8 text-gray-300 mx-auto mb-3"
+            />
+
+            <p class="text-sm text-gray-500">
+              No repository analyses yet.
             </p>
+
+            <button
+              @click="router.push('/analyze')"
+              class="mt-3 text-sm font-semibold text-green-600 hover:text-green-700"
+            >
+              Analyze a repository
+            </button>
           </div>
 
         </section>
 
-      </template>
+
+        <!-- ======================================= -->
+        <!-- AI INSIGHTS -->
+        <!-- ======================================= -->
+
+        <section
+          class="lg:col-span-2 bg-white border border-gray-200 rounded-xl overflow-hidden"
+        >
+
+          <!-- Card Header -->
+          <div
+            class="px-6 py-5 border-b border-gray-100 flex items-center justify-between"
+          >
+
+            <div>
+              <h2 class="text-lg font-bold text-gray-900">
+                AI Insights
+              </h2>
+
+              <p class="text-sm text-gray-500 mt-1">
+                Latest repository analysis
+              </p>
+            </div>
+
+            <div
+              class="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center"
+            >
+              <Sparkles
+                class="w-5 h-5 text-green-500"
+              />
+            </div>
+
+          </div>
+
+
+          <!-- AI Content -->
+          <div
+            v-if="aiSummary"
+            class="p-6"
+          >
+
+            <!-- Repository -->
+            <div class="mb-4">
+
+              <p
+                class="text-xs font-semibold uppercase tracking-wide text-gray-400"
+              >
+                Repository
+              </p>
+
+              <p
+                class="text-sm font-semibold text-gray-900 mt-1"
+              >
+                {{ aiRepositoryName }}
+              </p>
+
+            </div>
+
+
+            <!-- Summary -->
+            <div class="mb-5">
+
+              <p
+                class="text-sm text-gray-600 leading-6 line-clamp-4"
+              >
+                {{ aiSummary.summary }}
+              </p>
+
+            </div>
+
+
+            <!-- Strengths -->
+            <div
+              v-if="aiStrengths.length"
+              class="mb-5"
+            >
+
+              <p
+                class="text-sm font-semibold text-gray-900 mb-2"
+              >
+                Key Strengths
+              </p>
+
+              <div class="space-y-2">
+
+                <div
+                  v-for="strength in aiStrengths"
+                  :key="strength"
+                  class="flex items-start gap-2"
+                >
+
+                  <span
+                    class="w-1.5 h-1.5 rounded-full bg-green-500 mt-2 shrink-0"
+                  ></span>
+
+                  <p
+                    class="text-sm text-gray-600 leading-5"
+                  >
+                    {{ strength }}
+                  </p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+
+            <!-- Full Insights Button -->
+            <button
+              @click="goToAIInsights"
+              class="w-full py-2.5 rounded-lg border border-green-500 text-green-600 hover:bg-green-50 font-semibold text-sm transition"
+            >
+              View Full AI Insights
+              <span class="ml-1">→</span>
+            </button>
+
+          </div>
+
+
+          <!-- No AI Insight -->
+          <div
+            v-else
+            class="p-8 text-center"
+          >
+
+            <Sparkles
+              class="w-9 h-9 text-gray-300 mx-auto mb-3"
+            />
+
+            <p
+              class="text-sm font-medium text-gray-700"
+            >
+              No AI insights yet
+            </p>
+
+            <p
+              class="text-xs text-gray-500 mt-1 leading-5"
+            >
+              Analyze a repository to generate AI-powered insights.
+            </p>
+
+            <button
+              @click="router.push('/analyze')"
+              class="mt-4 text-sm font-semibold text-green-600 hover:text-green-700"
+            >
+              Analyze Repository →
+            </button>
+
+          </div>
+
+        </section>
+
+      </div>
+
+
+      <!-- ========================================= -->
+      <!-- ACTIVITY -->
+      <!-- ========================================= -->
+
+<!-- Your Activity -->
+<!-- Your Activity -->
+      <section class="bg-white border border-gray-200 rounded-xl p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-bold text-gray-900">
+              Your Activity
+            </h2>
+
+            <p class="text-sm text-gray-500 mt-1">
+              Repository analysis activity over the last 7 days
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2 text-sm text-gray-500">
+            <Activity class="w-5 h-5" />
+            <span>Last 7 days</span>
+          </div>
+        </div>
+
+        <div v-if="activity.length" class="mt-8">
+          <svg
+            viewBox="0 0 1000 300"
+            class="w-full h-75"
+            preserveAspectRatio="none"
+          >
+            <!-- Horizontal grid lines -->
+            <line
+              x1="30"
+              y1="55"
+              x2="970"
+              y2="55"
+              stroke="#e5e7eb"
+              stroke-width="1"
+            />
+
+            <line
+              x1="30"
+              y1="130"
+              x2="970"
+              y2="130"
+              stroke="#e5e7eb"
+              stroke-width="1"
+            />
+
+            <line
+              x1="30"
+              y1="205"
+              x2="970"
+              y2="205"
+              stroke="#e5e7eb"
+              stroke-width="1"
+            />
+
+            <!-- Filled area -->
+            <polygon
+              :points="
+                `30,255 ${
+                  activity
+                    .map((item, index) => {
+                      const maxValue = Math.max(
+                        ...activity.map(a => a.value),
+                        1
+                      )
+
+                      const x =
+                        30 +
+                        (index * 940) /
+                          Math.max(activity.length - 1, 1)
+
+                      const y =
+                        255 -
+                        (item.value / maxValue) * 200
+
+                      return `${x},${y}`
+                    })
+                    .join(' ')
+                } 970,255`
+              "
+              fill="#dcfce7"
+            />
+
+            <!-- Activity line -->
+            <polyline
+              :points="
+                activity
+                  .map((item, index) => {
+                    const maxValue = Math.max(
+                      ...activity.map(a => a.value),
+                      1
+                    )
+
+                    const x =
+                      30 +
+                      (index * 940) /
+                        Math.max(activity.length - 1, 1)
+
+                    const y =
+                      255 -
+                      (item.value / maxValue) * 200
+
+                    return `${x},${y}`
+                  })
+                  .join(' ')
+              "
+              fill="none"
+              stroke="#16a34a"
+              stroke-width="4"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+
+            <!-- Points -->
+            <g
+              v-for="(item, index) in activity"
+              :key="`${item.date}-${index}`"
+            >
+              <circle
+                :cx="
+                  30 +
+                  (index * 940) /
+                    Math.max(activity.length - 1, 1)
+                "
+                :cy="
+                  255 -
+                  (item.value /
+                    Math.max(
+                      ...activity.map(a => a.value),
+                      1
+                    )) *
+                    200
+                "
+                r="7"
+                fill="#16a34a"
+              />
+            </g>
+
+            <!-- Dates -->
+            <g
+              v-for="(item, index) in activity"
+              :key="`label-${item.date}-${index}`"
+            >
+              <text
+                :x="
+                  30 +
+                  (index * 940) /
+                    Math.max(activity.length - 1, 1)
+                "
+                y="285"
+                text-anchor="middle"
+                fill="#64748b"
+                font-size="13"
+              >
+                {{ item.label || item.date }}
+              </text>
+            </g>
+
+            <!-- Values -->
+            <g
+              v-for="(item, index) in activity"
+              :key="`value-${item.date}-${index}`"
+            >
+              <text
+                :x="
+                  30 +
+                  (index * 940) /
+                    Math.max(activity.length - 1, 1)
+                "
+                y="305"
+                text-anchor="middle"
+                fill="#111827"
+                font-size="13"
+                font-weight="600"
+              >
+                {{ item.value }}
+              </text>
+            </g>
+          </svg>
+        </div>
+
+        <div
+          v-else
+          class="h-75 flex items-center justify-center text-sm text-gray-500"
+        >
+          No activity available yet.
+        </div>
+      </section>
+
+
 
     </div>
+
   </div>
 </template>
