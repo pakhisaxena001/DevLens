@@ -9,10 +9,12 @@ import {
   ArrowRight,
   Sparkles,
 } from '@lucide/vue'
+import { useAuthStore } from '@/stores/auth'
 import { useDashboardStore } from '@/stores/dashboard'
 
 const router = useRouter()
 const dashboardStore = useDashboardStore()
+const authStore = useAuthStore()
 
 const stats = computed(() => dashboardStore.stats)
 
@@ -102,6 +104,7 @@ const goToAIInsights = () => {
 onMounted(async () => {
   try {
     await dashboardStore.fetchDashboardData()
+    await authStore.restoreSession()
   } catch (error) {
     console.error('Failed to load dashboard:', error)
   }
@@ -118,9 +121,9 @@ onMounted(async () => {
     <div class="max-w-7xl mx-auto">
 
       <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900">
-          Welcome back, {{ dashboardStore.user?.name || 'User' }}! 
-        </h1>
+      <h1 class="text-3xl font-bold text-gray-900">
+        Welcome back, {{ authStore.user?.name || 'User' }}!
+      </h1>
 
         <p class="text-gray-600 mt-2">
           Here's what's happening with your repositories today.
