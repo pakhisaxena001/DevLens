@@ -310,33 +310,44 @@ const toggleBookmark = async () => {
   }
 }
 
+
+
 onMounted(async () => {
   loading.value = true
   error.value = ''
 
   try {
-    let repositoryId = route.query.id
+    const routeRepositoryId = route.query.id
 
-    if (repositoryStore.currentRepository) {
-      repository.value = repositoryStore.currentRepository
-      repositoryId = repositoryId || repository.value.id
-    }
+    // 1. If coming from History, ALWAYS use the repository
+    //    specified in the URL.
+    if (routeRepositoryId) {
+      const repositoryId = String(routeRepositoryId)
 
-    if (!repository.value && repositoryId) {
       repository.value =
         await repositoryStore.getRepositoryDetails(repositoryId)
+
+      analysis.value =
+        await repositoryStore.getInsights(repositoryId)
     }
 
-    if (!repository.value && !repositoryId) {
+    // 2. Otherwise, use the currently selected repository.
+    else if (repositoryStore.currentRepository) {
+      repository.value = repositoryStore.currentRepository
+
+      analysis.value =
+        await repositoryStore.getInsights(repository.value.id)
+    }
+
+    // 3. If nothing is selected, load the latest repository.
+    else {
       repository.value =
         await repositoryStore.loadLatestRepository()
 
-      repositoryId = repository.value?.id
-    }
-
-    if (repositoryId) {
-      analysis.value =
-        await repositoryStore.getInsights(repositoryId)
+      if (repository.value?.id) {
+        analysis.value =
+          await repositoryStore.getInsights(repository.value.id)
+      }
     }
 
     if (!repository.value) {
@@ -344,12 +355,15 @@ onMounted(async () => {
     }
   } catch (err) {
     console.error('Failed to load repository:', err)
+
     error.value =
       err.message || 'Failed to load repository.'
   } finally {
     loading.value = false
   }
 })
+
+
 </script>
 
 <template>
